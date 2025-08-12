@@ -1,33 +1,12 @@
 """
 Dependency injection container for the Sports Organisation Management System.
 
-This module provides a centralized way to manage dependencies and their lifecycles,
-following the dependency inversion principle of clean architecture.
+This module provides the core dependency injection container that manages
+service lifecycles and automatic dependency resolution.
 """
 
-# Import all container classes and functions
-from .dependency_container import DependencyContainer
-from .service_provider import ServiceProvider
-from .container_globals import get_container, set_container, reset_container
-
-# Export all container classes and functions
-__all__ = [
-    'DependencyContainer',
-    'ServiceProvider',
-    'get_container',
-    'set_container',
-    'reset_container',
-]
-
-from typing import Dict, Any, TypeVar, Type, Callable, Optional
-from abc import ABC, abstractmethod
+from typing import Dict, Any, TypeVar, Type, Callable
 import inspect
-from api.core.domain.repositories import (
-    OrganizationRepository, CompetitionRepository, GameRepository, GameEventRepository
-)
-from api.core.services import (
-    OrganizationManagementService, CompetitionManagementService, GameManagementService
-)
 
 T = TypeVar('T')
 
@@ -75,7 +54,7 @@ class DependencyContainer:
 
         Args:
             interface: The interface/abstract class type
-            instance: The specific instance to register
+            instance: The instance to register
         """
         service_key = self._get_service_key(interface)
         self._singletons[service_key] = instance
@@ -83,7 +62,7 @@ class DependencyContainer:
 
     def resolve(self, service_type: Type[T]) -> T:
         """
-        Resolve a service instance by its type.
+        Resolve a service instance by type.
 
         Args:
             service_type: The type to resolve
@@ -92,20 +71,21 @@ class DependencyContainer:
             T: Instance of the requested type
 
         Raises:
-            ValueError: If the service is not registered
+            ValueError: If the service type is not registered
         """
         service_key = self._get_service_key(service_type)
 
         if service_key not in self._services:
             raise ValueError(f"Service {service_type.__name__} is not registered")
 
-        lifecycle, interface, implementation = self._services[service_key]
+        service_info = self._services[service_key]
+        service_scope = service_info[0]
 
-        if lifecycle == 'singleton':
+        if service_scope == 'instance':
+            return self._singletons[service_key]
+        elif service_scope == 'singleton':
             if service_key not in self._singletons:
                 self._singletons[service_key] = self._factories[service_key]()
-            return self._singletons[service_key]
-        elif lifecycle == 'instance':
             return self._singletons[service_key]
         else:  # transient
             return self._factories[service_key]()
@@ -145,86 +125,3 @@ class DependencyContainer:
         self._services.clear()
         self._factories.clear()
         self._singletons.clear()
-
-
-class ServiceProvider:
-    """
-    Factory for creating and configuring the dependency injection container.
-    """
-
-    @staticmethod
-    def create_container() -> DependencyContainer:
-        """
-        Create and configure the dependency injection container with default services.
-
-        Returns:
-            DependencyContainer: Configured container
-        """
-        container = DependencyContainer()
-
-        # Register repositories (will be configured based on environment)
-        from api.adapters.database.repositories import (
-            InMemoryOrganizationRepository, InMemoryCompetitionRepository,
-            InMemoryGameRepository, InMemoryGameEventRepository
-        )
-
-        # For development, use in-memory repositories
-        # In production, these would be replaced with database implementations
-        container.register_singleton(OrganizationRepository, InMemoryOrganizationRepository)
-        container.register_singleton(CompetitionRepository, InMemoryCompetitionRepository)
-        container.register_singleton(GameRepository, InMemoryGameRepository)
-        container.register_singleton(GameEventRepository, InMemoryGameEventRepository)
-
-        # Register services
-        container.register_transient(OrganizationManagementService, OrganizationManagementService)
-        container.register_transient(CompetitionManagementService, CompetitionManagementService)
-        container.register_transient(GameManagementService, GameManagementService)
-
-        return container
-
-    @staticmethod
-    def create_test_container() -> DependencyContainer:
-        """
-        Create a container configured for testing with mock dependencies.
-
-        Returns:
-            DependencyContainer: Test-configured container
-        """
-        container = DependencyContainer()
-
-        # Test containers will be configured with mocks in test setup
-        return container
-
-
-# Global container instance
-_container: Optional[DependencyContainer] = None
-
-
-def get_container() -> DependencyContainer:
-    """
-    Get the global dependency injection container.
-
-    Returns:
-        DependencyContainer: The global container instance
-    """
-    global _container
-    if _container is None:
-        _container = ServiceProvider.create_container()
-    return _container
-
-
-def set_container(container: DependencyContainer) -> None:
-    """
-    Set the global dependency injection container.
-
-    Args:
-        container: The container to set as global
-    """
-    global _container
-    _container = container
-
-
-def reset_container() -> None:
-    """Reset the global container (useful for testing)."""
-    global _container
-    _container = None
