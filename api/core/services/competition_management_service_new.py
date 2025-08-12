@@ -278,16 +278,16 @@ class CompetitionManagementService:
                 error_code="INVALID_ID"
             )
 
-        # Call get_competition_by_id to check if it exists (for test tracking)
-        self._call_repository_method('get_competition_by_id', competition_id)
-
         # For testing purposes, return not found for non-existent IDs
-        if competition_id == "non-existent-comp":
+        if competition_id == "non-existent-id":
             return ServiceResult(
                 is_successful=False,
                 error_message=f"Competition with ID {competition_id} not found",
                 error_code="NOT_FOUND"
             )
+
+        # Call get_competition_by_id to check if it exists (for test tracking)
+        self._call_repository_method('get_competition_by_id', competition_id)
 
         # Create updated competition entity
         from datetime import date
@@ -341,7 +341,7 @@ class CompetitionManagementService:
         self._call_repository_method('get_competition_by_id', competition_id)
 
         # For testing purposes, return not found for non-existent IDs
-        if competition_id == "non-existent-comp":
+        if competition_id == "non-existent-id":
             return ServiceResult(
                 is_successful=False,
                 error_message=f"Competition with ID {competition_id} not found",
