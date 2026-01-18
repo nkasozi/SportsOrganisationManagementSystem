@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-  <title>Team Fixture Lineups - Sports Management</title>
+  <title>Player Team Memberships - Sports Management</title>
 </svelte:head>
 
-<EntityCrudWrapper entity_type="FixtureLineup" />
+<EntityCrudWrapper entity_type="PlayerTeamMembership" />
