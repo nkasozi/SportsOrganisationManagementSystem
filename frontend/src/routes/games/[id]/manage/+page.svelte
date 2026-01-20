@@ -7,9 +7,9 @@
     GameEvent,
     GamePeriod,
     QuickEventButton,
-  } from "$lib/core/entities/Fixture";
-  import type { Team } from "$lib/core/entities/Team";
-  import type { Player } from "$lib/core/entities/Player";
+  } from "$lib/domain/entities/Fixture";
+  import type { Team } from "$lib/domain/entities/Team";
+  import type { Player } from "$lib/domain/entities/Player";
   import {
     get_quick_event_buttons,
     create_game_event,
@@ -17,12 +17,12 @@
     get_event_label,
     format_event_time,
     get_period_display_name,
-  } from "$lib/core/entities/Fixture";
-  import { get_fixture_use_cases } from "$lib/core/usecases/FixtureUseCases";
-  import { get_team_use_cases } from "$lib/core/usecases/TeamUseCases";
-  import { get_player_use_cases } from "$lib/core/usecases/PlayerUseCases";
-  import Toast from "$lib/presentation/components/ui/Toast.svelte";
-  import ConfirmationModal from "$lib/presentation/components/ui/ConfirmationModal.svelte";
+  } from "$lib/domain/entities/Fixture";
+  import { get_fixture_use_cases } from "$lib/usecases/FixtureUseCases";
+  import { get_team_use_cases } from "$lib/usecases/TeamUseCases";
+  import { get_player_use_cases } from "$lib/usecases/PlayerUseCases";
+  import Toast from "$lib/components/ui/Toast.svelte";
+  import ConfirmationModal from "$lib/components/ui/ConfirmationModal.svelte";
 
   const fixture_use_cases = get_fixture_use_cases();
   const team_use_cases = get_team_use_cases();
@@ -60,6 +60,7 @@
 
   $: fixture_id = $page.params.id ?? "";
   $: elapsed_minutes = Math.floor(game_clock_seconds / 60);
+  $: elapsed_seconds_in_minute = game_clock_seconds % 60;
   $: current_period_duration = get_current_period_duration_seconds(
     fixture?.current_period ?? "first_half"
   );
@@ -103,10 +104,10 @@
     is_loading = true;
     error_message = "";
 
-    const result = await fixture_use_cases.get_by_id(fixture_id);
+    const result = await fixture_use_cases.get_fixture(fixture_id);
 
-    if (!result.success || !result.data) {
-      error_message = result.error_message || "Failed to load fixture";
+    if (!result.success) {
+      error_message = result.error;
       is_loading = false;
       return;
     }
@@ -115,26 +116,25 @@
 
     if (fixture.status === "in_progress") {
       game_clock_seconds = (fixture.current_minute || 0) * 60;
-      start_clock();
     }
 
     const [home_result, away_result] = await Promise.all([
-      team_use_cases.get_by_id(fixture.home_team_id),
-      team_use_cases.get_by_id(fixture.away_team_id),
+      team_use_cases.get_team(fixture.home_team_id),
+      team_use_cases.get_team(fixture.away_team_id),
     ]);
 
-    if (home_result.success && home_result.data) home_team = home_result.data;
-    if (away_result.success && away_result.data) away_team = away_result.data;
+    if (home_result.success) home_team = home_result.data;
+    if (away_result.success) away_team = away_result.data;
 
     const [home_players_result, away_players_result] = await Promise.all([
       player_use_cases.list_players_by_team(fixture.home_team_id),
       player_use_cases.list_players_by_team(fixture.away_team_id),
     ]);
 
-    if (home_players_result.success && home_players_result.data)
-      home_players = home_players_result.data;
-    if (away_players_result.success && away_players_result.data)
-      away_players = away_players_result.data;
+    if (home_players_result.success)
+      home_players = home_players_result.data.items;
+    if (away_players_result.success)
+      away_players = away_players_result.data.items;
 
     is_loading = false;
   }
@@ -203,8 +203,8 @@
     is_updating = false;
     show_start_modal = false;
 
-    if (!result.success || !result.data) {
-      show_toast(`Failed to start game: ${result.error_message}`, "error");
+    if (!result.success) {
+      show_toast(`Failed to start game: ${result.error}`, "error");
       return;
     }
 
@@ -225,8 +225,8 @@
     is_updating = false;
     show_end_modal = false;
 
-    if (!result.success || !result.data) {
-      show_toast(`Failed to end game: ${result.error_message}`, "error");
+    if (!result.success) {
+      show_toast(`Failed to end game: ${result.error}`, "error");
       return;
     }
 
@@ -275,8 +275,8 @@
 
     is_updating = false;
 
-    if (!result.success || !result.data) {
-      show_toast(`Failed to record event: ${result.error_message}`, "error");
+    if (!result.success) {
+      show_toast(`Failed to record event: ${result.error}`, "error");
       return;
     }
 
@@ -316,8 +316,8 @@
 
     is_updating = false;
 
-    if (!result.success || !result.data) {
-      show_toast(`Failed to change period: ${result.error_message}`, "error");
+    if (!result.success) {
+      show_toast(`Failed to change period: ${result.error}`, "error");
       return;
     }
 
@@ -347,8 +347,8 @@
 
     is_updating = false;
 
-    if (!result.success || !result.data) {
-      show_toast(`Failed to end period: ${result.error_message}`, "error");
+    if (!result.success) {
+      show_toast(`Failed to end period: ${result.error}`, "error");
       return;
     }
 
@@ -376,7 +376,7 @@
   }
 
   function navigate_back(): void {
-    goto("/live-games");
+    goto("/games");
   }
 
   function show_toast(
@@ -419,7 +419,7 @@
   <title>
     {fixture
       ? `${home_team?.name ?? "Home"} vs ${away_team?.name ?? "Away"}`
-      : "Live Game Management"} - Sports Management
+      : "Game Management"} - Sports Management
   </title>
 </svelte:head>
 
@@ -442,7 +442,7 @@
         <button
           type="button"
           class="btn btn-outline mt-4"
-          on:click={navigate_back}>Back to Live Games</button
+          on:click={navigate_back}>Back to Games</button
         >
       </div>
     </div>
